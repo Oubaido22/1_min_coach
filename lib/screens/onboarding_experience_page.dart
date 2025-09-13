@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'home_page.dart';
+import 'onboarding_profile_picture_page.dart';
 
 class OnboardingExperiencePage extends StatefulWidget {
-  final String? selectedGoal;
+  final String? selectedGoal; // fitness goal (Lose Weight, Build Muscle, etc.)
   final double height;
   final double weight;
+  final String fullName;
+  final String email;
   
   const OnboardingExperiencePage({
     super.key,
     required this.selectedGoal,
     required this.height,
     required this.weight,
+    required this.fullName,
+    required this.email,
   });
 
   @override
@@ -165,14 +169,16 @@ class _OnboardingExperiencePageState extends State<OnboardingExperiencePage> {
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       const SizedBox(height: 2),
-                                      Text(
-                                        level['subtitle'],
-                                        style: GoogleFonts.inter(
-                                          fontSize: 13,
-                                          color: const Color(0xFF9E9E9E), // Light gray
+                                      Flexible(
+                                        child: Text(
+                                          level['subtitle'],
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            color: const Color(0xFF9E9E9E), // Light gray
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
@@ -265,12 +271,19 @@ class _OnboardingExperiencePageState extends State<OnboardingExperiencePage> {
                           print('Experience: $selectedExperience');
                           print('Sessions per day: $sessionsPerDay');
                           
-                          Navigator.pushAndRemoveUntil(
+                          Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const HomePage(),
+                              builder: (context) => OnboardingProfilePicturePage(
+                                fullName: widget.fullName,
+                                email: widget.email,
+                                height: widget.height,
+                                weight: widget.weight,
+                                objective: widget.selectedGoal ?? 'Lose Weight',
+                                experienceLevel: selectedExperience ?? 'Beginner',
+                                sessionsPerDay: sessionsPerDay,
+                              ),
                             ),
-                            (route) => false,
                           );
                         }
                       },

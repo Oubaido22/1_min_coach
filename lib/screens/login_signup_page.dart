@@ -27,7 +27,7 @@ class _LoginSignupPageState extends State<LoginSignupPage> {
           color: Color(0xFF121212), // Neutral Dark
         ),
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
@@ -254,7 +254,7 @@ class _LoginSignupPageState extends State<LoginSignupPage> {
                   ),
                 ),
                 
-                const Spacer(),
+                const SizedBox(height: 40),
                 
                 // Sign Up link
                 GestureDetector(

@@ -26,20 +26,8 @@ class AuthService {
       // Update the user's display name
       await result.user?.updateDisplayName(fullName);
 
-      // Create user document in Firestore
-      try {
-        await _firestore.collection('users').doc(result.user?.uid).set({
-          'uid': result.user?.uid,
-          'email': email,
-          'fullName': fullName,
-          'createdAt': FieldValue.serverTimestamp(),
-          'lastLoginAt': FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
-        // If Firestore write fails, still return the user credential
-        // The user is authenticated even if Firestore write fails
-        print('Warning: Failed to write user data to Firestore: $e');
-      }
+      // Note: User document will be created during onboarding process
+      // This ensures we have all the required data (height, weight, objective, profile picture)
 
       return result;
     } on FirebaseAuthException catch (e) {

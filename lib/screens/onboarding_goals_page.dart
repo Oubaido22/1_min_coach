@@ -3,7 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'onboarding_measurements_page.dart';
 
 class OnboardingGoalsPage extends StatefulWidget {
-  const OnboardingGoalsPage({super.key});
+  final String fullName;
+  final String email;
+  
+  const OnboardingGoalsPage({
+    super.key,
+    required this.fullName,
+    required this.email,
+  });
 
   @override
   State<OnboardingGoalsPage> createState() => _OnboardingGoalsPageState();
@@ -168,8 +175,9 @@ class _OnboardingGoalsPageState extends State<OnboardingGoalsPage> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 2),
-                                        Text(
-                                          goal['subtitle'],
+                                        Flexible(
+                                          child: Text(
+                                            goal['subtitle'],
                                           style: GoogleFonts.inter(
                                             fontSize: 13,
                                             color: const Color(0xFF9E9E9E), // Light gray
@@ -177,6 +185,7 @@ class _OnboardingGoalsPageState extends State<OnboardingGoalsPage> {
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -210,6 +219,8 @@ class _OnboardingGoalsPageState extends State<OnboardingGoalsPage> {
                             MaterialPageRoute(
                               builder: (context) => OnboardingMeasurementsPage(
                                 selectedGoal: selectedGoal,
+                                fullName: widget.fullName,
+                                email: widget.email,
                               ),
                             ),
                           );

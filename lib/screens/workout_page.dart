@@ -250,14 +250,19 @@ class _WorkoutPageState extends State<WorkoutPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // Workout Name
-                      Text(
-                        _workoutName,
-                        style: GoogleFonts.inter(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          _workoutName,
+                          style: GoogleFonts.inter(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
                         ),
-                        textAlign: TextAlign.center,
                       ),
                       
                       const SizedBox(height: 40),
@@ -315,6 +320,8 @@ class _WorkoutPageState extends State<WorkoutPage> {
                                 height: 1.4,
                               ),
                               textAlign: TextAlign.center,
+                              overflow: TextOverflow.visible,
+                              maxLines: null,
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -326,6 +333,8 @@ class _WorkoutPageState extends State<WorkoutPage> {
                                 height: 1.4,
                               ),
                               textAlign: TextAlign.center,
+                              overflow: TextOverflow.visible,
+                              maxLines: null,
                             ),
                           ],
                         ),

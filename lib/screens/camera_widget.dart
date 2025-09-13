@@ -277,7 +277,7 @@ class _CameraWidgetState extends State<CameraWidget> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Would you like to increase your workout duration?',
+                          'Select workout duration:',
                           style: GoogleFonts.inter(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -308,12 +308,14 @@ class _CameraWidgetState extends State<CameraWidget> {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      '1 Minute (Default)',
+                                      '1 Min',
                                       style: GoogleFonts.inter(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                         color: Colors.white,
                                       ),
+                                      textAlign: TextAlign.center,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ),
@@ -343,12 +345,14 @@ class _CameraWidgetState extends State<CameraWidget> {
                                   ),
                                   child: Center(
                                     child: Text(
-                                      '3 Minutes',
+                                      '3 Mins',
                                       style: GoogleFonts.inter(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                         color: Colors.white,
                                       ),
+                                      textAlign: TextAlign.center,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ),

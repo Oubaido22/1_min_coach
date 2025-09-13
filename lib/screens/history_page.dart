@@ -67,16 +67,20 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
                       ),
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    'Workout History & Achievements',
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Workout History & Achievements',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 16),
                   const SizedBox(width: 40), // Balance the back button
                 ],
               ),

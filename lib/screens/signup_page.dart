@@ -27,7 +27,7 @@ class _SignupPageState extends State<SignupPage> {
           color: Color(0xFF121212), // Neutral Dark
         ),
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
@@ -286,7 +286,7 @@ class _SignupPageState extends State<SignupPage> {
                   ),
                 ),
                 
-                const Spacer(),
+                const SizedBox(height: 40),
                 
                 // Log In link
                 GestureDetector(
@@ -352,7 +352,10 @@ class _SignupPageState extends State<SignupPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => const OnboardingGoalsPage(),
+            builder: (context) => OnboardingGoalsPage(
+              fullName: _nameController.text.trim(),
+              email: _emailController.text.trim(),
+            ),
           ),
         );
       }

@@ -4,10 +4,14 @@ import 'onboarding_experience_page.dart';
 
 class OnboardingMeasurementsPage extends StatefulWidget {
   final String? selectedGoal;
+  final String fullName;
+  final String email;
   
   const OnboardingMeasurementsPage({
     super.key,
     required this.selectedGoal,
+    required this.fullName,
+    required this.email,
   });
 
   @override
@@ -220,6 +224,8 @@ class _OnboardingMeasurementsPageState extends State<OnboardingMeasurementsPage>
                               selectedGoal: widget.selectedGoal,
                               height: height,
                               weight: weight,
+                              fullName: widget.fullName,
+                              email: widget.email,
                             ),
                           ),
                         );
