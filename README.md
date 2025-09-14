@@ -1,4 +1,4 @@
-# 🏋️‍♂️ MyGym - AI-Powered Fitness Companion
+# 🏋️‍♂️ 1-MN-Coach - AI-Powered Fitness Companion
 
 [![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev/)
 [![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
@@ -39,9 +39,9 @@ Stop adapting your life to an outdated fitness model. **Our app adapts to your l
 
 ## 🎯 Project Overview
 
-MyGym is a cutting-edge fitness application that revolutionizes home workouts by combining artificial intelligence, computer vision, and personalized exercise recommendations. Simply capture your workout environment, and our AI will analyze your space to provide tailored exercise suggestions that perfectly match your available equipment and space constraints.
+ 1-MN-Coach is a cutting-edge fitness application that revolutionizes home workouts by combining artificial intelligence, computer vision, and personalized exercise recommendations. Simply capture your workout environment, and our AI will analyze your space to provide tailored exercise suggestions that perfectly match your available equipment and space constraints.
 
-### 🌟 **Why MyGym?**
+### 🌟 **Why  1-MN-Coach?**
 - **No Gym Required**: Work out anywhere with AI-powered space analysis
 - **Personalized Recommendations**: Get exercises tailored to your specific environment
 - **Real-time Monitoring**: Advanced person detection ensures you stay on track
@@ -49,7 +49,7 @@ MyGym is a cutting-edge fitness application that revolutionizes home workouts by
 
 MyGym is a revolutionary Flutter-based fitness application that uses cutting-edge computer vision and AI to analyze your workout environment and provide personalized exercise recommendations. Simply snap a photo of your space, and watch as AI transforms it into your personal training ground.
 
-## ✨ What Makes MyGym Special?
+## ✨ What Makes  1-MN-Coach Special?
 
 ### 🤖 **AI-Powered Environment Analysis**
 - **Smart Space Recognition**: Our AI analyzes your surroundings to identify walls, floors, furniture, and available equipment
