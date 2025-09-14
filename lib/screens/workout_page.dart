@@ -2,7 +2,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
+<<<<<<< HEAD
 import '../services/workout_history_service.dart';
+=======
+import 'package:flutter/foundation.dart';
+import '../services/workout_validation_service.dart';
+import '../services/pose_detection_service_web.dart';
+>>>>>>> a541a6609ceede26cd85bf7d3b238e314b05a392
 
 class WorkoutPage extends StatefulWidget {
   final int duration; // Duration in minutes
@@ -27,9 +33,20 @@ class _WorkoutPageState extends State<WorkoutPage> {
   Timer? _timer;
   final WorkoutHistoryService _workoutHistoryService = WorkoutHistoryService();
   
+  // Workout validation
+  final WorkoutValidationService _workoutValidator = WorkoutValidationService();
+  final PoseDetectionServiceWeb _poseDetectionService = PoseDetectionServiceWeb();
+  
+  // Workout state
+  bool _isWorkoutActive = false;
+  WorkoutValidationResult? _currentValidation;
+  String _workoutStatus = 'Ready to start';
+  int _validReps = 0;
+  double _workoutQuality = 0.0;
+  
   // Workout data based on location analysis
-  String _workoutName = 'Standing Lunges';
-  String _workoutInstructions = 'Stand with feet hip-width apart. Step forward with one leg, lowering your hips until both knees are bent at about a 90-degree angle. Keep your front knee directly above your ankle. Push back up to starting position.';
+  String _workoutName = 'Bicep Curls';
+  String _workoutInstructions = 'Stand with feet hip-width apart. Hold your arms at your sides, then curl them up towards your shoulders. Lower them back down slowly.';
   String _formTips = 'Keep your core engaged and maintain a straight back throughout the movement.';
 
   @override
@@ -37,7 +54,6 @@ class _WorkoutPageState extends State<WorkoutPage> {
     super.initState();
     _remainingSeconds = widget.duration * 60; // Convert minutes to seconds
     _initializeCamera();
-    _startTimer();
     _generateWorkoutFromLocation();
   }
 
@@ -45,21 +61,39 @@ class _WorkoutPageState extends State<WorkoutPage> {
   void dispose() {
     _timer?.cancel();
     _cameraController?.dispose();
+    _poseDetectionService.dispose();
     super.dispose();
   }
 
   Future<void> _initializeCamera() async {
-    _cameras = await availableCameras();
-    if (_cameras!.isNotEmpty) {
-      _cameraController = CameraController(
-        _cameras![0],
-        ResolutionPreset.medium,
-        enableAudio: false,
-      );
-      
-      await _cameraController!.initialize();
+    if (kIsWeb) {
+      // Camera not supported on web
       setState(() {
         _isInitialized = true;
+        _workoutStatus = 'Demo Mode: Camera not supported on web';
+      });
+      return;
+    }
+    
+    try {
+      _cameras = await availableCameras();
+      if (_cameras!.isNotEmpty) {
+        _cameraController = CameraController(
+          _cameras![0],
+          ResolutionPreset.medium,
+          enableAudio: false,
+        );
+        
+        await _cameraController!.initialize();
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      print('Error initializing camera: $e');
+      setState(() {
+        _isInitialized = true;
+        _workoutStatus = 'Demo Mode: Camera initialization failed';
       });
     }
   }
@@ -72,9 +106,145 @@ class _WorkoutPageState extends State<WorkoutPage> {
         });
       } else if (_remainingSeconds == 0) {
         _timer?.cancel();
-        _showWorkoutCompleteDialog();
+        _endWorkout();
       }
     });
+  }
+
+  void _startWorkout() {
+    if (!_isWorkoutActive) {
+      _workoutValidator.startWorkout();
+      _startTimer();
+      _startPoseDetection();
+      setState(() {
+        _isWorkoutActive = true;
+        _workoutStatus = 'Workout in progress!';
+      });
+    }
+  }
+
+  void _startPoseDetection() {
+    if (kIsWeb) {
+      // Camera not supported on web, use demo mode
+      setState(() {
+        _workoutStatus = 'Demo Mode: Camera not supported on web';
+      });
+      return;
+    }
+    
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    _cameraController!.startImageStream(_processCameraImage);
+  }
+
+  Future<void> _processCameraImage(CameraImage cameraImage) async {
+    if (!_isWorkoutActive || _isPaused) return;
+
+    try {
+      // Detect poses in the image
+      final poses = await _poseDetectionService.detectPoses(
+        cameraImage, 
+        _cameraController!.description,
+      );
+
+      // Validate workout quality
+      if (poses.isNotEmpty) {
+        final validation = _workoutValidator.validateWorkout(poses);
+        
+        setState(() {
+          _currentValidation = validation;
+          _validReps = validation.reps;
+          _workoutQuality = validation.quality;
+          _workoutStatus = validation.message;
+        });
+      } else {
+        setState(() {
+          _workoutStatus = 'No pose detected. Position yourself in front of the camera.';
+        });
+      }
+
+    } catch (e) {
+      print('Error processing camera image: $e');
+    }
+  }
+
+  void _endWorkout() {
+    _timer?.cancel();
+    if (!kIsWeb) {
+      _cameraController?.stopImageStream();
+    }
+    
+    final stats = _workoutValidator.getWorkoutStats();
+    
+    setState(() {
+      _isWorkoutActive = false;
+      _workoutStatus = 'Workout completed!';
+    });
+
+    _showWorkoutResults(stats);
+  }
+
+  void _demoMode() {
+    if (!_isWorkoutActive) {
+      _workoutValidator.startWorkout();
+      _startTimer();
+      setState(() {
+        _isWorkoutActive = true;
+        _workoutStatus = 'Demo Mode: Simulating workout...';
+      });
+    }
+  }
+
+  void _showWorkoutResults(WorkoutStats stats) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text(
+          'Workout Complete!',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Valid Reps: ${stats.validReps}',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            Text(
+              'Total Reps: ${stats.totalReps}',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            Text(
+              'Workout Quality: ${(stats.intensity * 100).toInt()}%',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            Text(
+              'Duration: ${stats.duration} seconds',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: Text(
+              'Done',
+              style: GoogleFonts.inter(color: const Color(0xFF6A0DAD)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _generateWorkoutFromLocation() {
@@ -276,100 +446,225 @@ class _WorkoutPageState extends State<WorkoutPage> {
                 
                 // Center Content
                 Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Workout Name
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          _workoutName,
-                          style: GoogleFonts.inter(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 40),
-                      
-                      // Timer
-                      Container(
-                        width: 200,
-                        height: 200,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.3),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF6A0DAD),
-                            width: 4,
-                          ),
-                        ),
-                        child: Center(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Workout Name
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: Text(
-                            _formatTime(_remainingSeconds),
+                            _workoutName,
                             style: GoogleFonts.inter(
-                              fontSize: 48,
+                              fontSize: 32,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
                           ),
                         ),
-                      ),
-                      
-                      const SizedBox(height: 40),
-                      
-                      // Instructions
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 24),
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              'Instructions',
+                        
+                        const SizedBox(height: 40),
+                        
+                        // Timer
+                        Container(
+                          width: 200,
+                          height: 200,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.3),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF6A0DAD),
+                              width: 4,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              _formatTime(_remainingSeconds),
                               style: GoogleFonts.inter(
-                                fontSize: 18,
+                                fontSize: 48,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _workoutInstructions,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: Colors.white,
-                                height: 1.4,
-                              ),
-                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.visible,
-                              maxLines: null,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 40),
+                        
+                        // Workout Status
+                        if (_isWorkoutActive) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Form Tips: $_formTips',
+                            decoration: BoxDecoration(
+                              color: _currentValidation?.isValid == true 
+                                ? Colors.green.withOpacity(0.8)
+                                : Colors.orange.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              _workoutStatus,
                               style: GoogleFonts.inter(
                                 fontSize: 14,
-                                color: const Color(0xFF6A0DAD),
-                                fontWeight: FontWeight.w500,
-                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
                               ),
                               textAlign: TextAlign.center,
-                              overflow: TextOverflow.visible,
-                              maxLines: null,
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 20),
+                          
+                          // Workout Stats
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              Column(
+                                children: [
+                                  Text(
+                                    'Valid Reps',
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF9E9E9E),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Text(
+                                    '$_validReps',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                children: [
+                                  Text(
+                                    'Quality',
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF9E9E9E),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${(_workoutQuality * 100).toInt()}%',
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF6A0DAD),
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          // Start Workout Button
+                          ElevatedButton(
+                            onPressed: _startWorkout,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF6A0DAD),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Start Workout',
+                              style: GoogleFonts.inter(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          
+                          // Demo Mode Button for Web
+                          if (kIsWeb) ...[
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _demoMode,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: Text(
+                                'Demo Mode',
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ],
+                        ],
+                        
+                        const SizedBox(height: 40),
+                        
+                        // Instructions
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 24),
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Instructions',
+                                style: GoogleFonts.inter(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _workoutInstructions,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                  height: 1.4,
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.visible,
+                                maxLines: null,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Form Tips: $_formTips',
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  color: const Color(0xFF6A0DAD),
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.4,
+                                ),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.visible,
+                                maxLines: null,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 

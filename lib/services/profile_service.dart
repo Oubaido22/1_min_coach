@@ -3,7 +3,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/user_profile.dart';
+import 'upload_service.dart';
 
 class ProfileService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -11,7 +14,7 @@ class ProfileService {
   final Uuid _uuid = const Uuid();
 
   // Upload profile picture to Firebase Storage
-  Future<String> uploadProfilePicture(String userId, File imageFile) async {
+  Future<String> uploadProfilePicture(String userId, dynamic imageSource) async {
     try {
       // Generate unique filename
       String fileName = '${_uuid.v4()}.jpg';
@@ -19,28 +22,16 @@ class ProfileService {
       
       print('Uploading profile picture for user: $userId');
       print('File path: $path');
-      print('File size: ${await imageFile.length()} bytes');
       
-      // Create reference to the file location
-      Reference ref = _storage.ref().child(path);
-      
-      // Upload the file
-      UploadTask uploadTask = ref.putFile(
-        imageFile,
-        SettableMetadata(
-          contentType: 'image/jpeg',
-          customMetadata: {
-            'userId': userId,
-            'uploadedAt': DateTime.now().toIso8601String(),
-          },
-        ),
+      // Upload using the UploadService
+      String downloadUrl = await UploadService.uploadImage(
+        path: path,
+        imageSource: imageSource,
+        metadata: {
+          'userId': userId,
+          'uploadedAt': DateTime.now().toIso8601String(),
+        },
       );
-      
-      // Wait for upload to complete
-      TaskSnapshot snapshot = await uploadTask;
-      
-      // Get download URL
-      String downloadUrl = await snapshot.ref.getDownloadURL();
       
       print('Profile picture uploaded successfully: $downloadUrl');
       return downloadUrl;
@@ -116,7 +107,7 @@ class ProfileService {
     required String objective,
     required String experienceLevel,
     required int sessionsPerDay,
-    required File profilePicture,
+    required dynamic profilePicture, // File ou XFile
   }) async {
     try {
       // Check authentication state
@@ -167,43 +158,23 @@ class ProfileService {
   // Delete profile picture from storage
   Future<void> deleteProfilePicture(String userId, String imageUrl) async {
     try {
-      // Extract path from URL
-      String path = _extractPathFromUrl(imageUrl);
-      if (path.isNotEmpty) {
-        Reference ref = _storage.ref().child(path);
-        await ref.delete();
-      }
+      await UploadService.deleteFile(imageUrl);
     } catch (e) {
       // Don't throw error for deletion failures
       print('Warning: Failed to delete profile picture: $e');
     }
   }
 
-  // Extract storage path from download URL
-  String _extractPathFromUrl(String url) {
-    try {
-      Uri uri = Uri.parse(url);
-      String path = uri.path;
-      // Remove the leading slash and any query parameters
-      if (path.startsWith('/')) {
-        path = path.substring(1);
-      }
-      return path;
-    } catch (e) {
-      return '';
-    }
-  }
-
   // Update profile picture
-  Future<String> updateProfilePicture(String userId, File newImageFile, String? oldImageUrl) async {
+  Future<String> updateProfilePicture(String userId, dynamic newImage, String? oldImageUrl) async {
     try {
       // Delete old profile picture if it exists
       if (oldImageUrl != null && oldImageUrl.isNotEmpty) {
-        await deleteProfilePicture(userId, oldImageUrl);
+        await UploadService.deleteFile(oldImageUrl);
       }
       
       // Upload new profile picture
-      String newImageUrl = await uploadProfilePicture(userId, newImageFile);
+      String newImageUrl = await uploadProfilePicture(userId, newImage);
       
       // Update user profile in Firestore
       await updateUserProfile(userId, {

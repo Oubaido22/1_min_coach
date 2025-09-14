@@ -1,10 +1,18 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
+<<<<<<< HEAD
 import '../services/exercise_analysis_service.dart';
 import '../models/exercise_analysis.dart';
 import 'exercise_suggestion_page.dart';
+=======
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/foundation.dart';
+import '../services/camera_service.dart';
+import '../services/image_picker_service.dart';
+import 'workout_page.dart';
+>>>>>>> a541a6609ceede26cd85bf7d3b238e314b05a392
 
 class CameraWidget extends StatefulWidget {
   const CameraWidget({super.key});
@@ -14,14 +22,16 @@ class CameraWidget extends StatefulWidget {
 }
 
 class _CameraWidgetState extends State<CameraWidget> {
-  CameraController? _cameraController;
-  List<CameraDescription>? _cameras;
   bool _isInitialized = false;
   bool _isAnalyzing = false;
   ExerciseAnalysis? _analysisResult;
   int _selectedDuration = 3; // Default to 3 minutes
+<<<<<<< HEAD
   bool _isUsingMockData = false;
   final ExerciseAnalysisService _analysisService = ExerciseAnalysisService();
+=======
+  XFile? _selectedImage;
+>>>>>>> a541a6609ceede26cd85bf7d3b238e314b05a392
 
   @override
   void initState() {
@@ -30,29 +40,37 @@ class _CameraWidgetState extends State<CameraWidget> {
   }
 
   Future<void> _initializeCamera() async {
-    _cameras = await availableCameras();
-    if (_cameras!.isNotEmpty) {
-      _cameraController = CameraController(
-        _cameras![0],
-        ResolutionPreset.high,
-        enableAudio: false,
-      );
+    try {
+      if (kIsWeb) {
+        // Sur le web, on ne peut pas initialiser la caméra
+        setState(() {
+          _isInitialized = true; // On considère comme initialisé pour permettre l'utilisation d'image_picker
+        });
+        return;
+      }
       
-      await _cameraController!.initialize();
-      setState(() {
-        _isInitialized = true;
-      });
+      final controller = await CameraService.initializeCamera();
+      if (controller != null) {
+        setState(() {
+          _isInitialized = true;
+        });
+      } else {
+        _showErrorDialog('Impossible d\'initialiser la caméra. Vérifiez les permissions.');
+      }
+    } catch (e) {
+      _showErrorDialog('Erreur lors de l\'initialisation de la caméra: $e');
     }
   }
 
   @override
   void dispose() {
-    _cameraController?.dispose();
+    CameraService.dispose();
     super.dispose();
   }
 
   Future<void> _takePicture() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+    if (!_isInitialized) {
+      _showErrorDialog('Caméra non initialisée');
       return;
     }
 
@@ -61,13 +79,49 @@ class _CameraWidgetState extends State<CameraWidget> {
     });
 
     try {
-      final XFile image = await _cameraController!.takePicture();
-      await _analyzeImage(image.path);
+      final XFile? image = await CameraService.takePicture();
+      if (image != null) {
+        setState(() {
+          _selectedImage = image;
+        });
+        await _analyzeImage(image.path);
+      } else {
+        setState(() {
+          _isAnalyzing = false;
+        });
+        _showErrorDialog('Impossible de prendre la photo');
+      }
     } catch (e) {
       setState(() {
         _isAnalyzing = false;
       });
-      _showErrorDialog('Failed to take picture: $e');
+      _showErrorDialog('Erreur lors de la prise de photo: $e');
+    }
+  }
+
+  Future<void> _selectImageFromGallery() async {
+    setState(() {
+      _isAnalyzing = true;
+    });
+
+    try {
+      final XFile? image = await ImagePickerService.pickImageFromGallery();
+      if (image != null) {
+        setState(() {
+          _selectedImage = image;
+        });
+        await _analyzeImage(image.path);
+      } else {
+        setState(() {
+          _isAnalyzing = false;
+        });
+        _showErrorDialog('Aucune image sélectionnée');
+      }
+    } catch (e) {
+      setState(() {
+        _isAnalyzing = false;
+      });
+      _showErrorDialog('Erreur lors de la sélection d\'image: $e');
     }
   }
 
@@ -75,6 +129,7 @@ class _CameraWidgetState extends State<CameraWidget> {
     try {
       print('🔍 Starting image analysis...');
       
+<<<<<<< HEAD
       // Convert duration from minutes to seconds
       final durationInSeconds = _selectedDuration * 60;
       
@@ -86,6 +141,16 @@ class _CameraWidgetState extends State<CameraWidget> {
         imageFile: File(imagePath),
         duration: durationInSeconds,
       );
+=======
+      // Mock analysis result
+      final mockResults = [
+        "Salon détecté - Parfait pour les exercices debout!",
+        "Chambre détectée - Idéal pour le yoga et les étirements!",
+        "Bureau détecté - Parfait pour les exercices de bureau!",
+        "Cuisine détectée - Idéal pour les exercices au comptoir!",
+        "Espace extérieur détecté - Parfait pour le cardio!",
+      ];
+>>>>>>> a541a6609ceede26cd85bf7d3b238e314b05a392
       
       setState(() {
         _analysisResult = analysis;
@@ -100,7 +165,7 @@ class _CameraWidgetState extends State<CameraWidget> {
         _isAnalyzing = false;
         _isUsingMockData = true;
       });
-      _showErrorDialog('Failed to analyze image: $e');
+      _showErrorDialog('Erreur lors de l\'analyse de l\'image: $e');
     }
   }
 
@@ -439,12 +504,64 @@ class _CameraWidgetState extends State<CameraWidget> {
                                         ),
                                       )
                                     : Text(
-                                        'Take Photo',
+                                        'Prendre une photo',
                                         style: GoogleFonts.inter(
                                           fontSize: 16,
                                           fontWeight: FontWeight.w600,
                                           color: Colors.white,
                                         ),
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Gallery Button
+                      Expanded(
+                        child: Container(
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2A2A2A), // Secondary color
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFF6A0DAD),
+                              width: 1,
+                            ),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: _isAnalyzing ? null : _selectImageFromGallery,
+                              child: Center(
+                                child: _isAnalyzing
+                                    ? const SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.photo_library,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Galerie',
+                                            style: GoogleFonts.inter(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                               ),
                             ),
@@ -569,7 +686,43 @@ class _CameraWidgetState extends State<CameraWidget> {
       );
     }
 
-    if (!_isInitialized || _cameraController == null) {
+    if (kIsWeb) {
+      // Sur le web, afficher un placeholder pour la caméra
+      return Container(
+        color: const Color(0xFF1E1E1E),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.camera_alt,
+                size: 80,
+                color: Color(0xFF6A0DAD),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Caméra non disponible sur le web',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Utilisez les boutons ci-dessous pour sélectionner une image',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!_isInitialized || CameraService.cameraController == null) {
       return Container(
         color: const Color(0xFF1E1E1E),
         child: const Center(
@@ -582,7 +735,7 @@ class _CameraWidgetState extends State<CameraWidget> {
               ),
               SizedBox(height: 16),
               Text(
-                'Initializing camera...',
+                'Initialisation de la caméra...',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -594,6 +747,6 @@ class _CameraWidgetState extends State<CameraWidget> {
       );
     }
 
-    return CameraPreview(_cameraController!);
+    return CameraPreview(CameraService.cameraController!);
   }
 }
