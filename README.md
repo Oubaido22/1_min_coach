@@ -1,9 +1,8 @@
-# 🏋️‍♂️ 1-MN-Coach - AI-Powered Fitness Companion
+# 🏋️‍♂️ 1 mn coach - AI-Powered Fitness Companion
 
 [![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev/)
 [![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![AI](https://img.shields.io/badge/AI-FF6B6B?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 > **Transform any space into your personal gym with the power of artificial intelligence**
 
@@ -24,7 +23,7 @@ The biggest myth in fitness is that you need a gym, expensive equipment, or a de
 
 ## 💡 Our Proposed Solution
 
-Welcome to a new era of fitness. We're not just an app; **we're your personal revolution**. MyGym ignites your fitness journey with the power of **micro-workouts**—high-impact, 1-minute exercise sessions you can do anywhere, anytime. Our AI-driven solution transforms your surroundings into your own personal gym.
+Welcome to a new era of fitness. We're not just an app; **we're your personal revolution**. 1 mn coach ignites your fitness journey with the power of **micro-workouts**—high-impact, 1-minute exercise sessions you can do anywhere, anytime. Our AI-driven solution transforms your surroundings into your own personal gym.
 
 ### 🚀 **Our Core Innovation: Fitness That Adapts to YOU**
 
@@ -39,17 +38,17 @@ Stop adapting your life to an outdated fitness model. **Our app adapts to your l
 
 ## 🎯 Project Overview
 
- 1-MN-Coach is a cutting-edge fitness application that revolutionizes home workouts by combining artificial intelligence, computer vision, and personalized exercise recommendations. Simply capture your workout environment, and our AI will analyze your space to provide tailored exercise suggestions that perfectly match your available equipment and space constraints.
+1 mn coach is a cutting-edge fitness application that revolutionizes home workouts by combining artificial intelligence, computer vision, and personalized exercise recommendations. Simply capture your workout environment, and our AI will analyze your space to provide tailored exercise suggestions that perfectly match your available equipment and space constraints.
 
-### 🌟 **Why  1-MN-Coach?**
+### 🌟 **Why 1 mn coach?**
 - **No Gym Required**: Work out anywhere with AI-powered space analysis
 - **Personalized Recommendations**: Get exercises tailored to your specific environment
 - **Real-time Monitoring**: Advanced person detection ensures you stay on track
 - **Intelligent Tracking**: Comprehensive workout history with AI and traditional exercises
 
-MyGym is a revolutionary Flutter-based fitness application that uses cutting-edge computer vision and AI to analyze your workout environment and provide personalized exercise recommendations. Simply snap a photo of your space, and watch as AI transforms it into your personal training ground.
+1 mn coach is a revolutionary Flutter-based fitness application that uses cutting-edge computer vision and AI to analyze your workout environment and provide personalized exercise recommendations. Simply snap a photo of your space, and watch as AI transforms it into your personal training ground.
 
-## ✨ What Makes  1-MN-Coach Special?
+## ✨ What Makes 1 mn coach Special?
 
 ### 🤖 **AI-Powered Environment Analysis**
 - **Smart Space Recognition**: Our AI analyzes your surroundings to identify walls, floors, furniture, and available equipment
@@ -210,7 +209,7 @@ MyGym is a revolutionary Flutter-based fitness application that uses cutting-edg
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! Whether you're fixing bugs, adding features, or improving documentation, your help makes MyGym better for everyone.
+We welcome contributions from the community! Whether you're fixing bugs, adding features, or improving documentation, your help makes 1 mn coach better for everyone.
 
 ### **How to Contribute**
 1. Fork the repository
@@ -219,9 +218,88 @@ We welcome contributions from the community! Whether you're fixing bugs, adding 
 4. Test thoroughly on multiple devices
 5. Submit a pull request with detailed description
 
-## 📄 License
+## 📱 Installation Guide
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+### Prerequisites
+
+Before installing 1 mn coach, make sure you have the following installed on your system:
+
+- **Flutter SDK** (version 3.0 or higher)
+- **Dart SDK** (comes with Flutter)
+- **Android Studio** or **VS Code** with Flutter extensions
+- **Git** for version control
+- **Firebase CLI** (optional, for advanced configuration)
+
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/yourusername/1-mn-coach.git
+cd 1-mn-coach
+```
+
+### Step 2: Install Dependencies
+
+```bash
+flutter pub get
+```
+
+### Step 3: Firebase Configuration
+
+1. Create a new Firebase project at [Firebase Console](https://console.firebase.google.com/)
+2. Enable Authentication, Firestore Database, and Storage
+3. Download the configuration files:
+   - For Android: `google-services.json` → place in `android/app/`
+   - For iOS: `GoogleService-Info.plist` → place in `ios/Runner/`
+4. Update `lib/firebase_options.dart` with your project configuration
+
+### Step 4: API Configuration
+
+1. Set up your AI analysis API endpoint
+2. Update the API URL in `lib/services/exercise_analysis_service.dart`
+3. Configure any required API keys in your environment
+
+### Step 5: Platform-Specific Setup
+
+#### Android Setup
+
+1. Ensure Android SDK is installed
+2. Enable developer options on your Android device
+3. Run the app:
+   ```bash
+   flutter run
+   ```
+
+#### iOS Setup
+
+1. Ensure Xcode is installed (macOS only)
+2. Open `ios/Runner.xcworkspace` in Xcode
+3. Configure signing and capabilities
+4. Run the app:
+   ```bash
+   flutter run
+   ```
+
+### Step 6: Permissions
+
+Make sure to grant the following permissions:
+- **Camera**: Required for environment analysis
+- **Storage**: For saving workout images and data
+- **Internet**: For AI analysis and data synchronization
+
+### Troubleshooting
+
+#### Common Issues
+
+1. **Flutter doctor issues**: Run `flutter doctor` to check for missing dependencies
+2. **Build errors**: Clean and rebuild with `flutter clean && flutter pub get`
+3. **Firebase connection**: Verify your configuration files are in the correct locations
+4. **Camera not working**: Check device permissions and camera availability
+
+#### Getting Help
+
+- Check the [Flutter documentation](https://docs.flutter.dev/)
+- Review [Firebase setup guides](https://firebase.google.com/docs/flutter/setup)
+- Open an issue on our GitHub repository
 
 ## 🙏 Acknowledgments
 
@@ -241,6 +319,6 @@ Having issues or questions? We're here to help!
 
 ---
 
-**Ready to transform your fitness journey? Download MyGym and experience the future of personalized workouts!** 🚀
+**Ready to transform your fitness journey? Download 1 mn coach and experience the future of personalized workouts!** 🚀
 
 *Built with ❤️ using Flutter, Firebase, and cutting-edge AI technology*
