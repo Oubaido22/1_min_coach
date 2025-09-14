@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/profile_service.dart';
 import '../models/user_profile.dart';
+import '../widgets/web_compatible_image.dart';
 import 'home_page.dart';
 
 class OnboardingProfilePicturePage extends StatefulWidget {
@@ -32,7 +33,7 @@ class OnboardingProfilePicturePage extends StatefulWidget {
 }
 
 class _OnboardingProfilePicturePageState extends State<OnboardingProfilePicturePage> {
-  File? _selectedImage;
+  XFile? _selectedImage;
   final ImagePicker _picker = ImagePicker();
   final ProfileService _profileService = ProfileService();
   bool _isLoading = false;
@@ -142,11 +143,24 @@ class _OnboardingProfilePicturePageState extends State<OnboardingProfilePictureP
                       child: _selectedImage != null
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(100),
-                              child: Image.file(
-                                _selectedImage!,
+                              child: WebCompatibleImage(
+                                imagePath: _selectedImage!.path,
                                 fit: BoxFit.cover,
                                 width: 200,
                                 height: 200,
+                                placeholder: Container(
+                                  width: 200,
+                                  height: 200,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[300],
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.person,
+                                    size: 100,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               ),
                             )
                           : Column(
@@ -413,7 +427,7 @@ class _OnboardingProfilePicturePageState extends State<OnboardingProfilePictureP
       
       if (image != null) {
         setState(() {
-          _selectedImage = File(image.path);
+          _selectedImage = image;
         });
       }
     } catch (e) {
