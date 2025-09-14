@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/profile_service.dart';
+import '../services/workout_plan_service.dart';
 import '../models/user_profile.dart';
 import 'home_page.dart';
 
@@ -35,6 +36,7 @@ class _OnboardingProfilePicturePageState extends State<OnboardingProfilePictureP
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
   final ProfileService _profileService = ProfileService();
+  final WorkoutPlanService _workoutPlanService = WorkoutPlanService();
   bool _isLoading = false;
 
   @override
@@ -460,6 +462,33 @@ class _OnboardingProfilePicturePageState extends State<OnboardingProfilePictureP
       print('Objective (Fitness Goal): ${profile.objective}');
       print('Experience Level: ${profile.experienceLevel}');
       print('Sessions Per Day: ${profile.sessionsPerDay}');
+      
+      // Fetch and save workout plans after profile completion
+      try {
+        print('🚀 Starting workout plan fetch after profile completion...');
+        print('👤 User: ${profile.fullName}');
+        print('📧 Email: ${profile.email}');
+        print('📏 Height: ${profile.height}cm');
+        print('⚖️ Weight: ${profile.weight}kg');
+        print('🎯 Objective: ${profile.objective}');
+        print('💪 Experience: ${profile.experienceLevel}');
+        print('📅 Sessions per day: ${profile.sessionsPerDay}');
+        
+        final workoutPlan = await _workoutPlanService.fetchAndSaveWorkoutPlan(profile);
+        print('✅ Workout plans fetched and saved successfully!');
+        print('📊 Fullbody plan days: ${workoutPlan.fullbodyPlan.keys.length}');
+        print('📊 Cardio plan days: ${workoutPlan.cardioPlan.keys.length}');
+      } catch (e) {
+        print('❌ Error fetching workout plans: $e');
+        // Don't block the user flow if workout plan fetching fails
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Profile saved, but workout plans will be loaded when needed'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       
       if (mounted) {
         // Show success message

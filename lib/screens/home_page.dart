@@ -3,8 +3,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'camera_widget.dart';
 import 'profile_page.dart';
 import 'history_page.dart';
+import 'fullbody_workout_page.dart';
+import 'cardio_workout_page.dart';
 import '../services/profile_service.dart';
+import '../services/workout_plan_service.dart';
 import '../models/user_profile.dart';
+import '../models/workout_plan.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class HomePage extends StatefulWidget {
@@ -19,6 +23,7 @@ class _HomePageState extends State<HomePage> {
   UserProfile? _userProfile;
   bool _isLoading = true;
   final ProfileService _profileService = ProfileService();
+  final WorkoutPlanService _workoutPlanService = WorkoutPlanService();
 
   @override
   void initState() {
@@ -320,39 +325,42 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   // Full Body Card
                   Expanded(
-                    child: Container(
-                      height: 120,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF6A0DAD), // Primary Accent
-                              borderRadius: BorderRadius.circular(8),
+                    child: GestureDetector(
+                      onTap: () => _navigateToWorkoutPlan('fullbody'),
+                      child: Container(
+                        height: 120,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1E1E),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF6A0DAD), // Primary Accent
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.fitness_center,
+                                color: Colors.white,
+                                size: 24,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.fitness_center,
-                              color: Colors.white,
-                              size: 24,
+                            const SizedBox(height: 12),
+                            Text(
+                              'Full Body',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Full Body',
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -361,39 +369,42 @@ class _HomePageState extends State<HomePage> {
                   
                   // Cardio Card
                   Expanded(
-                    child: Container(
-                      height: 120,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF6A0DAD), // Primary Accent
-                              borderRadius: BorderRadius.circular(8),
+                    child: GestureDetector(
+                      onTap: () => _navigateToWorkoutPlan('cardio'),
+                      child: Container(
+                        height: 120,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1E1E),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFC107), // Secondary Accent
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.local_fire_department,
+                                color: Colors.white,
+                                size: 24,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.local_fire_department,
-                              color: Colors.white,
-                              size: 24,
+                            const SizedBox(height: 12),
+                            Text(
+                              'Cardio',
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Cardio',
-                            style: GoogleFonts.inter(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -473,5 +484,81 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Colors.transparent,
       builder: (context) => const CameraWidget(),
     );
+  }
+
+  Future<void> _navigateToWorkoutPlan(String planType) async {
+    if (_userProfile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please complete your profile first'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    print('🎯 User tapped $planType workout card');
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6A0DAD)),
+        ),
+      ),
+    );
+
+    try {
+      // First check if workout plan exists in Firestore
+      final hasPlan = await _workoutPlanService.hasWorkoutPlanInFirestore();
+      print('🔍 Workout plan exists in Firestore: $hasPlan');
+      
+      // First try to get workout plan from Firestore
+      WorkoutPlan? workoutPlan = await _workoutPlanService.getWorkoutPlanFromFirestore();
+      
+      // If not found in Firestore, fetch from API and save
+      if (workoutPlan == null) {
+        print('🌐 No workout plan found in Firestore, fetching from API...');
+        workoutPlan = await _workoutPlanService.fetchAndSaveWorkoutPlan(_userProfile!);
+        print('✅ New workout plan fetched and saved to Firestore');
+      } else {
+        print('✅ Using existing workout plan from Firestore - no API call needed');
+      }
+      
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Navigate to appropriate page (workoutPlan is guaranteed to be non-null here)
+      if (planType == 'fullbody') {
+        print('🏋️ Navigating to Full Body workout page');
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FullbodyWorkoutPage(workoutPlan: workoutPlan!),
+          ),
+        );
+      } else if (planType == 'cardio') {
+        print('🔥 Navigating to Cardio workout page');
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CardioWorkoutPage(workoutPlan: workoutPlan!),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog
+      Navigator.of(context).pop();
+      
+      print('❌ Error in _navigateToWorkoutPlan: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load workout plan: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

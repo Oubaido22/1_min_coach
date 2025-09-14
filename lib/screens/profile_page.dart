@@ -3,7 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
+import '../services/workout_history_service.dart';
+import '../services/workout_service.dart';
 import '../models/user_profile.dart';
+import '../models/workout_history.dart';
 import '../widgets/auth_wrapper.dart';
 import 'home_page.dart';
 import 'history_page.dart';
@@ -19,8 +22,11 @@ class _ProfilePageState extends State<ProfilePage> {
   int _currentIndex = 2; // Profile is active
   final AuthService _authService = AuthService();
   final ProfileService _profileService = ProfileService();
+  final WorkoutHistoryService _workoutHistoryService = WorkoutHistoryService();
+  final WorkoutService _workoutService = WorkoutService();
   User? _currentUser;
   UserProfile? _userProfile;
+  Map<String, dynamic> _workoutStats = {};
   bool _isLoading = true;
 
   @override
@@ -37,11 +43,21 @@ class _ProfilePageState extends State<ProfilePage> {
           _isLoading = true;
         });
         
+        // Load user profile
         UserProfile? profile = await _profileService.getUserProfile(_currentUser!.uid);
+        
+        // Load workout statistics
+        final regularStats = await _workoutHistoryService.getWorkoutStats();
+        final aiWorkouts = await _workoutService.getWorkoutHistory();
+        final aiStats = await _workoutService.getWorkoutStats();
+        
+        // Combine stats from both regular and AI workouts
+        final combinedStats = _combineStats(regularStats, aiStats, aiWorkouts);
         
         if (mounted) {
           setState(() {
             _userProfile = profile;
+            _workoutStats = combinedStats;
             _isLoading = false;
           });
         }
@@ -58,6 +74,30 @@ class _ProfilePageState extends State<ProfilePage> {
         _isLoading = false;
       });
     }
+  }
+
+  /// Combine stats from regular and AI workouts
+  Map<String, dynamic> _combineStats(
+    Map<String, dynamic> regularStats,
+    Map<String, dynamic> aiStats,
+    List<Map<String, dynamic>> aiWorkouts,
+  ) {
+    // Calculate total minutes from AI workouts (duration is in seconds)
+    int aiTotalMinutes = 0;
+    for (final aiWorkout in aiWorkouts) {
+      final duration = aiWorkout['duration'] ?? 0;
+      aiTotalMinutes += ((duration as int) / 60).round();
+    }
+
+    return {
+      'totalMinutes': (regularStats['totalMinutes'] ?? 0) + aiTotalMinutes,
+      'totalWorkouts': (regularStats['totalWorkouts'] ?? 0) + aiWorkouts.length,
+      'currentStreak': regularStats['currentStreak'] ?? 0,
+      'workoutTypes': {
+        ...Map<String, int>.from(regularStats['workoutTypes'] ?? {}),
+        'AI_Generated': aiWorkouts.length,
+      },
+    };
   }
 
   @override
@@ -224,7 +264,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       child: Row(
                         children: [
-                          // Workouts
+                          // Total Workouts
                           Expanded(
                             child: Column(
                               children: [
@@ -243,7 +283,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  '150',
+                                  '${_workoutStats['totalWorkouts'] ?? 0}',
                                   style: GoogleFonts.inter(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
@@ -261,7 +301,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
                           
-                          // Longest Streak
+                          // Current Streak
                           Expanded(
                             child: Column(
                               children: [
@@ -280,7 +320,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  '21 Days',
+                                  '${_workoutStats['currentStreak'] ?? 0}',
                                   style: GoogleFonts.inter(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
@@ -288,7 +328,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 ),
                                 Text(
-                                  'Longest Streak',
+                                  'Day Streak',
                                   style: GoogleFonts.inter(
                                     fontSize: 14,
                                     color: const Color(0xFF9E9E9E), // Light gray
@@ -298,7 +338,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
                           
-                          // Awards
+                          // Total Minutes
                           Expanded(
                             child: Column(
                               children: [
@@ -310,14 +350,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
-                                    Icons.emoji_events,
+                                    Icons.timer,
                                     color: Colors.white,
                                     size: 24,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  '5',
+                                  '${_workoutStats['totalMinutes'] ?? 0}',
                                   style: GoogleFonts.inter(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
@@ -325,7 +365,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 ),
                                 Text(
-                                  'Awards',
+                                  'Minutes',
                                   style: GoogleFonts.inter(
                                     fontSize: 14,
                                     color: const Color(0xFF9E9E9E), // Light gray
@@ -372,49 +412,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     
                     const SizedBox(height: 32),
-                    
-                    // User Token Section
-                    if (_userProfile?.userToken != null) ...[
-                      Text(
-                        'User Token',
-                        style: GoogleFonts.inter(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E1E),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Your unique token:',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: const Color(0xFF9E9E9E),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SelectableText(
-                              _userProfile!.userToken!,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF6A0DAD),
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                    ],
                     
                     // Settings
                     Container(

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
 import '../services/workout_history_service.dart';
+import '../services/workout_service.dart';
 import '../models/workout_history.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -15,7 +17,9 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin {
   int _currentIndex = 1; // History is active
   final WorkoutHistoryService _workoutHistoryService = WorkoutHistoryService();
+  final WorkoutService _workoutService = WorkoutService();
   List<WorkoutHistory> _workouts = [];
+  List<Map<String, dynamic>> _aiWorkouts = [];
   Map<String, dynamic> _stats = {};
   bool _isLoading = true;
   late AnimationController _avatarController;
@@ -47,13 +51,22 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
 
   Future<void> _loadWorkoutData() async {
     try {
+      // Load regular workout history
       final workouts = await _workoutHistoryService.getUserWorkoutHistory();
-      final stats = await _workoutHistoryService.getWorkoutStats();
+      final regularStats = await _workoutHistoryService.getWorkoutStats();
+      
+      // Load AI-generated workouts
+      final aiWorkouts = await _workoutService.getWorkoutHistory();
+      final aiStats = await _workoutService.getWorkoutStats();
+      
+      // Combine stats from both regular and AI workouts
+      final combinedStats = _combineStats(regularStats, aiStats, workouts, aiWorkouts);
       
       if (mounted) {
         setState(() {
           _workouts = workouts;
-          _stats = stats;
+          _aiWorkouts = aiWorkouts;
+          _stats = combinedStats;
           _isLoading = false;
         });
       }
@@ -65,6 +78,125 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
         });
       }
     }
+  }
+
+  /// Combine stats from regular and AI workouts
+  Map<String, dynamic> _combineStats(
+    Map<String, dynamic> regularStats,
+    Map<String, dynamic> aiStats,
+    List<WorkoutHistory> regularWorkouts,
+    List<Map<String, dynamic>> aiWorkouts,
+  ) {
+    // Calculate total minutes from AI workouts (duration is in seconds)
+    int aiTotalMinutes = 0;
+    for (final aiWorkout in aiWorkouts) {
+      final duration = aiWorkout['duration'] ?? 0;
+      aiTotalMinutes += ((duration as int) / 60).round();
+    }
+
+    // Combine all workouts for streak calculation
+    final allWorkouts = <Map<String, dynamic>>[];
+    
+    // Add regular workouts
+    for (final workout in regularWorkouts) {
+      allWorkouts.add({
+        'completedAt': workout.completedAt,
+        'type': workout.workoutType,
+      });
+    }
+    
+    // Add AI workouts
+    for (final aiWorkout in aiWorkouts) {
+      final completedAt = aiWorkout['completedAt'];
+      DateTime date;
+      if (completedAt is Timestamp) {
+        date = completedAt.toDate();
+      } else if (completedAt is String) {
+        date = DateTime.parse(completedAt);
+      } else {
+        date = DateTime.now();
+      }
+      
+      allWorkouts.add({
+        'completedAt': date,
+        'type': 'AI_Generated',
+      });
+    }
+
+    // Calculate combined streak
+    final combinedStreak = _calculateCombinedStreak(allWorkouts);
+
+    return {
+      'totalMinutes': (regularStats['totalMinutes'] ?? 0) + aiTotalMinutes,
+      'totalWorkouts': (regularStats['totalWorkouts'] ?? 0) + aiWorkouts.length,
+      'currentStreak': combinedStreak,
+      'workoutTypes': {
+        ...Map<String, int>.from(regularStats['workoutTypes'] ?? {}),
+        'AI_Generated': aiWorkouts.length,
+      },
+      'averageWorkoutDuration': _calculateAverageDuration(
+        (regularStats['totalMinutes'] ?? 0) + aiTotalMinutes,
+        (regularStats['totalWorkouts'] ?? 0) + aiWorkouts.length,
+      ),
+    };
+  }
+
+  /// Calculate streak from combined workouts
+  int _calculateCombinedStreak(List<Map<String, dynamic>> allWorkouts) {
+    if (allWorkouts.isEmpty) return 0;
+
+    // Sort by completedAt in descending order
+    allWorkouts.sort((a, b) => (b['completedAt'] as DateTime).compareTo(a['completedAt'] as DateTime));
+
+    // Group workouts by date
+    final Map<String, List<Map<String, dynamic>>> workoutsByDate = {};
+    for (var workout in allWorkouts) {
+      final dateKey = _getDateKey(workout['completedAt'] as DateTime);
+      workoutsByDate[dateKey] ??= [];
+      workoutsByDate[dateKey]!.add(workout);
+    }
+
+    // Get sorted dates
+    final sortedDates = workoutsByDate.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    int streak = 0;
+    final today = DateTime.now();
+    final todayKey = _getDateKey(today);
+
+    // Check if user worked out today or yesterday
+    bool hasWorkedOutToday = workoutsByDate.containsKey(todayKey);
+    bool hasWorkedOutYesterday = workoutsByDate.containsKey(_getDateKey(today.subtract(const Duration(days: 1))));
+
+    // If no workout today and no workout yesterday, streak is 0
+    if (!hasWorkedOutToday && !hasWorkedOutYesterday) {
+      return 0;
+    }
+
+    // Start counting from today or yesterday
+    DateTime currentDate = hasWorkedOutToday ? today : today.subtract(const Duration(days: 1));
+    
+    while (true) {
+      final dateKey = _getDateKey(currentDate);
+      
+      if (workoutsByDate.containsKey(dateKey)) {
+        streak++;
+        currentDate = currentDate.subtract(const Duration(days: 1));
+      } else {
+        break;
+      }
+    }
+
+    return streak;
+  }
+
+  /// Get date key in YYYY-MM-DD format
+  String _getDateKey(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Calculate average workout duration
+  int _calculateAverageDuration(int totalMinutes, int totalWorkouts) {
+    return totalWorkouts > 0 ? (totalMinutes / totalWorkouts).round() : 0;
   }
 
   @override
@@ -441,7 +573,9 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
   }
 
   Widget _buildWorkoutList() {
-    if (_workouts.isEmpty) {
+    final totalWorkouts = _workouts.length + _aiWorkouts.length;
+    
+    if (totalWorkouts == 0) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(40),
@@ -482,10 +616,18 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _workouts.length,
+      itemCount: totalWorkouts,
       itemBuilder: (context, index) {
-        final workout = _workouts[index];
-        return _buildWorkoutCard(workout);
+        if (index < _workouts.length) {
+          // Regular workout
+          final workout = _workouts[index];
+          return _buildWorkoutCard(workout);
+        } else {
+          // AI workout
+          final aiIndex = index - _workouts.length;
+          final aiWorkout = _aiWorkouts[aiIndex];
+          return _buildAIWorkoutCard(aiWorkout);
+        }
       },
     );
   }
@@ -573,9 +715,144 @@ class _HistoryPageState extends State<HistoryPage> with TickerProviderStateMixin
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 6));
     
-    return _workouts.where((workout) {
+    int count = 0;
+    
+    // Count regular workouts
+    count += _workouts.where((workout) {
       final workoutDate = workout.completedAt;
       return workoutDate.isAfter(weekStart) && workoutDate.isBefore(weekEnd);
     }).length;
+    
+    // Count AI workouts
+    count += _aiWorkouts.where((aiWorkout) {
+      final completedAt = aiWorkout['completedAt'];
+      DateTime date;
+      if (completedAt is Timestamp) {
+        date = completedAt.toDate();
+      } else if (completedAt is String) {
+        date = DateTime.parse(completedAt);
+      } else {
+        return false;
+      }
+      return date.isAfter(weekStart) && date.isBefore(weekEnd);
+    }).length;
+    
+    return count;
+  }
+
+  Widget _buildAIWorkoutCard(Map<String, dynamic> aiWorkout) {
+    final completedAt = aiWorkout['completedAt'] as Timestamp?;
+    final date = completedAt?.toDate() ?? DateTime.now();
+    final timeString = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final dateString = '${date.day}/${date.month}/${date.year}';
+    final duration = aiWorkout['duration'] ?? 0;
+    final exerciseName = aiWorkout['exerciseName'] ?? 'AI Workout';
+    final detectedObjects = List<String>.from(aiWorkout['detectedObjects'] ?? []);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF6A0DAD).withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6A0DAD).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Color(0xFF6A0DAD),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      exerciseName,
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'AI Generated • $dateString at $timeString',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: const Color(0xFF9E9E9E),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6A0DAD).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${(duration / 60).round()}m',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF6A0DAD),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (detectedObjects.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Environment:',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF9E9E9E),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: detectedObjects.take(3).map((object) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    object,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: const Color(0xFF9E9E9E),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

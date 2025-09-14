@@ -2,9 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'workout_page.dart';
+import '../services/exercise_analysis_service.dart';
+import '../models/exercise_analysis.dart';
+import 'exercise_suggestion_page.dart';
 
 class CameraWidget extends StatefulWidget {
   const CameraWidget({super.key});
@@ -18,8 +18,10 @@ class _CameraWidgetState extends State<CameraWidget> {
   List<CameraDescription>? _cameras;
   bool _isInitialized = false;
   bool _isAnalyzing = false;
-  String? _analysisResult;
+  ExerciseAnalysis? _analysisResult;
   int _selectedDuration = 3; // Default to 3 minutes
+  bool _isUsingMockData = false;
+  final ExerciseAnalysisService _analysisService = ExerciseAnalysisService();
 
   @override
   void initState() {
@@ -71,25 +73,32 @@ class _CameraWidgetState extends State<CameraWidget> {
 
   Future<void> _analyzeImage(String imagePath) async {
     try {
-      // Simulate AI analysis (replace with actual OpenAI API call)
-      await Future.delayed(const Duration(seconds: 2));
+      print('🔍 Starting image analysis...');
       
-      // Mock analysis result
-      final mockResults = [
-        "This appears to be a living room with a couch and coffee table. Perfect for bodyweight exercises like push-ups, planks, and squats.",
-        "You're in a bedroom with some open space. Great for yoga, stretching, and light cardio exercises.",
-        "This looks like an office space with a desk. Ideal for chair-based exercises and desk stretches.",
-        "You're in a kitchen area. Perfect for quick standing exercises and balance training.",
-        "This appears to be an outdoor space. Excellent for cardio, running in place, and full-body movements.",
-      ];
+      // Convert duration from minutes to seconds
+      final durationInSeconds = _selectedDuration * 60;
+      
+      // Test API connection first
+      final isApiAvailable = await _analysisService.testApiConnection();
+      
+      // Analyze the image using the exercise analysis service
+      final analysis = await _analysisService.analyzeWorkoutPictureWithRetry(
+        imageFile: File(imagePath),
+        duration: durationInSeconds,
+      );
       
       setState(() {
-        _analysisResult = mockResults[DateTime.now().millisecond % mockResults.length];
+        _analysisResult = analysis;
         _isAnalyzing = false;
+        _isUsingMockData = !isApiAvailable;
       });
+      
+      print('✅ Image analysis completed successfully');
+      print('📊 Using ${_isUsingMockData ? "mock" : "real"} data');
     } catch (e) {
       setState(() {
         _isAnalyzing = false;
+        _isUsingMockData = true;
       });
       _showErrorDialog('Failed to analyze image: $e');
     }
@@ -128,13 +137,24 @@ class _CameraWidgetState extends State<CameraWidget> {
   }
 
   void _startWorkout() {
+    if (_analysisResult == null) {
+      _showErrorDialog('Please take a picture first to get exercise suggestions');
+      return;
+    }
+
+    // Get the captured image path
+    final imagePath = _cameraController?.value.isInitialized == true 
+        ? 'camera_capture_${DateTime.now().millisecondsSinceEpoch}.jpg'
+        : '';
+
     Navigator.of(context).pop(); // Close camera widget
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => WorkoutPage(
-          duration: _selectedDuration,
-          locationAnalysis: _analysisResult ?? 'Your space',
+        builder: (context) => ExerciseSuggestionPage(
+          analysis: _analysisResult!,
+          imagePath: imagePath,
+          duration: _selectedDuration * 60, // Convert to seconds
         ),
       ),
     );
@@ -235,30 +255,55 @@ class _CameraWidgetState extends State<CameraWidget> {
                             Container(
                               width: 8,
                               height: 8,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF6A0DAD),
+                              decoration: BoxDecoration(
+                                color: _isUsingMockData ? Colors.orange : const Color(0xFF6A0DAD),
                                 shape: BoxShape.circle,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'AI Analysis',
+                              _isUsingMockData ? 'Mock Analysis (API Offline)' : 'AI Analysis Complete',
                               style: GoogleFonts.inter(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                                color: _isUsingMockData ? Colors.orange : Colors.white,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          _analysisResult!,
+                          'Found ${_analysisResult!.detectedObjects.length} objects and ${_analysisResult!.exerciseSuggestions.length} exercise suggestions',
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             color: const Color(0xFF9E9E9E),
                             height: 1.4,
                           ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Show detected objects
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _analysisResult!.detectedObjects.take(3).map((object) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF6A0DAD).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                object,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: const Color(0xFF6A0DAD),
+                                ),
+                              ),
+                            );
+                          }).toList(),
                         ),
                       ],
                     ),
