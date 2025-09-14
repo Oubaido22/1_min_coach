@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
+import '../services/workout_validation_service.dart';
+import '../services/pose_detection_service_web.dart';
 
 class WorkoutPage extends StatefulWidget {
   final int duration; // Duration in minutes
@@ -25,9 +27,20 @@ class _WorkoutPageState extends State<WorkoutPage> {
   int _remainingSeconds = 0;
   Timer? _timer;
   
+  // Workout validation
+  final WorkoutValidationService _workoutValidator = WorkoutValidationService();
+  final PoseDetectionServiceWeb _poseDetectionService = PoseDetectionServiceWeb();
+  
+  // Workout state
+  bool _isWorkoutActive = false;
+  WorkoutValidationResult? _currentValidation;
+  String _workoutStatus = 'Ready to start';
+  int _validReps = 0;
+  double _workoutQuality = 0.0;
+  
   // Workout data based on location analysis
-  String _workoutName = 'Standing Lunges';
-  String _workoutInstructions = 'Stand with feet hip-width apart. Step forward with one leg, lowering your hips until both knees are bent at about a 90-degree angle. Keep your front knee directly above your ankle. Push back up to starting position.';
+  String _workoutName = 'Bicep Curls';
+  String _workoutInstructions = 'Stand with feet hip-width apart. Hold your arms at your sides, then curl them up towards your shoulders. Lower them back down slowly.';
   String _formTips = 'Keep your core engaged and maintain a straight back throughout the movement.';
 
   @override
@@ -35,7 +48,6 @@ class _WorkoutPageState extends State<WorkoutPage> {
     super.initState();
     _remainingSeconds = widget.duration * 60; // Convert minutes to seconds
     _initializeCamera();
-    _startTimer();
     _generateWorkoutFromLocation();
   }
 
@@ -43,6 +55,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
   void dispose() {
     _timer?.cancel();
     _cameraController?.dispose();
+    _poseDetectionService.dispose();
     super.dispose();
   }
 
@@ -70,9 +83,124 @@ class _WorkoutPageState extends State<WorkoutPage> {
         });
       } else if (_remainingSeconds == 0) {
         _timer?.cancel();
-        _showWorkoutCompleteDialog();
+        _endWorkout();
       }
     });
+  }
+
+  void _startWorkout() {
+    if (!_isWorkoutActive) {
+      _workoutValidator.startWorkout();
+      _startTimer();
+      _startPoseDetection();
+      setState(() {
+        _isWorkoutActive = true;
+        _workoutStatus = 'Workout in progress!';
+      });
+    }
+  }
+
+  void _startPoseDetection() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    _cameraController!.startImageStream(_processCameraImage);
+  }
+
+  Future<void> _processCameraImage(CameraImage cameraImage) async {
+    if (!_isWorkoutActive || _isPaused) return;
+
+    try {
+      // Detect poses in the image
+      final poses = await _poseDetectionService.detectPoses(
+        cameraImage, 
+        _cameraController!.description,
+      );
+
+      // Validate workout quality
+      if (poses.isNotEmpty) {
+        final validation = _workoutValidator.validateWorkout(poses);
+        
+        setState(() {
+          _currentValidation = validation;
+          _validReps = validation.reps;
+          _workoutQuality = validation.quality;
+          _workoutStatus = validation.message;
+        });
+      } else {
+        setState(() {
+          _workoutStatus = 'No pose detected. Position yourself in front of the camera.';
+        });
+      }
+
+    } catch (e) {
+      print('Error processing camera image: $e');
+    }
+  }
+
+  void _endWorkout() {
+    _timer?.cancel();
+    _cameraController?.stopImageStream();
+    
+    final stats = _workoutValidator.getWorkoutStats();
+    
+    setState(() {
+      _isWorkoutActive = false;
+      _workoutStatus = 'Workout completed!';
+    });
+
+    _showWorkoutResults(stats);
+  }
+
+  void _showWorkoutResults(WorkoutStats stats) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text(
+          'Workout Complete!',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Valid Reps: ${stats.validReps}',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            Text(
+              'Total Reps: ${stats.totalReps}',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            Text(
+              'Workout Quality: ${(stats.intensity * 100).toInt()}%',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            Text(
+              'Duration: ${stats.duration} seconds',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: Text(
+              'Done',
+              style: GoogleFonts.inter(color: const Color(0xFF6A0DAD)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _generateWorkoutFromLocation() {
@@ -285,6 +413,103 @@ class _WorkoutPageState extends State<WorkoutPage> {
                           ),
                         ),
                       ),
+                      
+                      const SizedBox(height: 40),
+                      
+                      // Workout Status
+                      if (_isWorkoutActive) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _currentValidation?.isValid == true 
+                              ? Colors.green.withOpacity(0.8)
+                              : Colors.orange.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _workoutStatus,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Workout Stats
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Column(
+                              children: [
+                                Text(
+                                  'Valid Reps',
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF9E9E9E),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                Text(
+                                  '$_validReps',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              children: [
+                                Text(
+                                  'Quality',
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF9E9E9E),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                Text(
+                                  '${(_workoutQuality * 100).toInt()}%',
+                                  style: GoogleFonts.inter(
+                                    color: const Color(0xFF6A0DAD),
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        // Start Workout Button
+                        ElevatedButton(
+                          onPressed: _startWorkout,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF6A0DAD),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Start Workout',
+                            style: GoogleFonts.inter(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                       
                       const SizedBox(height: 40),
                       
