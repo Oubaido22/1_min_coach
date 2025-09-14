@@ -3,17 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
-import '../services/workout_validation_service.dart';
-import '../services/pose_detection_service_web.dart';
+import '../services/pose_detection_service.dart';
+import '../services/motion_detection_service.dart';
 
 class WorkoutPage extends StatefulWidget {
   final int duration; // Duration in minutes
   final String locationAnalysis;
+  final bool enablePoseDetection;
   
   const WorkoutPage({
     super.key,
     required this.duration,
     required this.locationAnalysis,
+    this.enablePoseDetection = false,
   });
 
   @override
@@ -28,16 +30,16 @@ class _WorkoutPageState extends State<WorkoutPage> {
   int _remainingSeconds = 0;
   Timer? _timer;
   
-  // Workout validation
-  final WorkoutValidationService _workoutValidator = WorkoutValidationService();
-  final PoseDetectionServiceWeb _poseDetectionService = PoseDetectionServiceWeb();
+  // Motion detection
+  final PoseDetectionService _poseDetectionService = PoseDetectionService();
+  final MotionDetectionService _motionDetectionService = MotionDetectionService();
   
   // Workout state
   bool _isWorkoutActive = false;
-  WorkoutValidationResult? _currentValidation;
   String _workoutStatus = 'Ready to start';
-  int _validReps = 0;
-  double _workoutQuality = 0.0;
+  bool _isMoving = false;
+  DateTime? _lastMovementTime;
+  int _repCount = 0;
   
   // Workout data based on location analysis
   String _workoutName = 'Bicep Curls';
@@ -48,8 +50,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
   void initState() {
     super.initState();
     _remainingSeconds = widget.duration * 60; // Convert minutes to seconds
-    _initializeCamera();
-    _generateWorkoutFromLocation();
+    // Don't initialize camera here, wait for workout to start
   }
 
   @override
@@ -62,7 +63,6 @@ class _WorkoutPageState extends State<WorkoutPage> {
 
   Future<void> _initializeCamera() async {
     if (kIsWeb) {
-      // Camera not supported on web
       setState(() {
         _isInitialized = true;
         _workoutStatus = 'Demo Mode: Camera not supported on web';
@@ -71,25 +71,50 @@ class _WorkoutPageState extends State<WorkoutPage> {
     }
     
     try {
+      // Dispose of any existing camera controller
+      await _cameraController?.dispose();
+      _cameraController = null;
+
+      print('Getting available cameras...');
       _cameras = await availableCameras();
-      if (_cameras!.isNotEmpty) {
-        _cameraController = CameraController(
-          _cameras![0],
-          ResolutionPreset.medium,
-          enableAudio: false,
-        );
-        
-        await _cameraController!.initialize();
-        setState(() {
-          _isInitialized = true;
-        });
+      if (_cameras!.isEmpty) {
+        throw Exception('No cameras found');
       }
-    } catch (e) {
-      print('Error initializing camera: $e');
+      print('Found ${_cameras!.length} cameras');
+
+      // Try to get the front camera first
+      final frontCamera = _cameras!.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.front,
+        orElse: () => _cameras!.first,
+      );
+      print('Selected camera: ${frontCamera.name}');
+
+      _cameraController = CameraController(
+        frontCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
+      
+      print('Initializing camera controller...');
+      await _cameraController!.initialize();
+      print('Camera controller initialized');
+      
+      if (!mounted) return;
+
       setState(() {
         _isInitialized = true;
-        _workoutStatus = 'Demo Mode: Camera initialization failed';
+        print('Camera initialization completed successfully');
       });
+
+    } catch (e) {
+      print('Error initializing camera: $e');
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _workoutStatus = 'Error: Camera initialization failed - $e';
+        });
+      }
     }
   }
 
@@ -106,19 +131,26 @@ class _WorkoutPageState extends State<WorkoutPage> {
     });
   }
 
-  void _startWorkout() {
+  Future<void> _startWorkout() async {
     if (!_isWorkoutActive) {
-      _workoutValidator.startWorkout();
-      _startTimer();
-      _startPoseDetection();
       setState(() {
         _isWorkoutActive = true;
-        _workoutStatus = 'Workout in progress!';
+        _workoutStatus = 'Starting workout... Get ready!';
       });
+
+      // Re-initialize camera to ensure it's ready
+      await _initializeCamera();
+      
+      if (!kIsWeb) {
+        await _startPoseDetection();
+      }
+      
+      _motionDetectionService.reset();
+      _startTimer();
     }
   }
 
-  void _startPoseDetection() {
+  Future<void> _startPoseDetection() async {
     if (kIsWeb) {
       // Camera not supported on web, use demo mode
       setState(() {
@@ -128,10 +160,19 @@ class _WorkoutPageState extends State<WorkoutPage> {
     }
     
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      print('Camera not initialized when trying to start pose detection');
       return;
     }
 
-    _cameraController!.startImageStream(_processCameraImage);
+    try {
+      await _cameraController!.startImageStream(_processCameraImage);
+      print('Camera stream started successfully');
+    } catch (e) {
+      print('Error starting camera stream: $e');
+      setState(() {
+        _workoutStatus = 'Error starting camera';
+      });
+    }
   }
 
   Future<void> _processCameraImage(CameraImage cameraImage) async {
@@ -144,19 +185,20 @@ class _WorkoutPageState extends State<WorkoutPage> {
         _cameraController!.description,
       );
 
-      // Validate workout quality
+      // Check for motion
       if (poses.isNotEmpty) {
-        final validation = _workoutValidator.validateWorkout(poses);
-        
+        final isMoving = _motionDetectionService.isMoving(poses);
         setState(() {
-          _currentValidation = validation;
-          _validReps = validation.reps;
-          _workoutQuality = validation.quality;
-          _workoutStatus = validation.message;
+          _isMoving = isMoving;
+          _workoutStatus = isMoving 
+              ? 'Movement detected! Keep going!' 
+              : 'No movement detected. Keep moving!';
+          _repCount = _motionDetectionService.getRepCount();
         });
       } else {
         setState(() {
-          _workoutStatus = 'No pose detected. Position yourself in front of the camera.';
+          _isMoving = false;
+          _workoutStatus = 'No person detected. Position yourself in front of the camera.';
         });
       }
 
@@ -171,19 +213,16 @@ class _WorkoutPageState extends State<WorkoutPage> {
       _cameraController?.stopImageStream();
     }
     
-    final stats = _workoutValidator.getWorkoutStats();
-    
     setState(() {
       _isWorkoutActive = false;
       _workoutStatus = 'Workout completed!';
     });
 
-    _showWorkoutResults(stats);
+    _showWorkoutCompleteDialog();
   }
 
   void _demoMode() {
     if (!_isWorkoutActive) {
-      _workoutValidator.startWorkout();
       _startTimer();
       setState(() {
         _isWorkoutActive = true;
@@ -192,55 +231,6 @@ class _WorkoutPageState extends State<WorkoutPage> {
     }
   }
 
-  void _showWorkoutResults(WorkoutStats stats) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: Text(
-          'Workout Complete!',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Valid Reps: ${stats.validReps}',
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-            Text(
-              'Total Reps: ${stats.totalReps}',
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-            Text(
-              'Workout Quality: ${(stats.intensity * 100).toInt()}%',
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-            Text(
-              'Duration: ${stats.duration} seconds',
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-            },
-            child: Text(
-              'Done',
-              style: GoogleFonts.inter(color: const Color(0xFF6A0DAD)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _generateWorkoutFromLocation() {
     // Generate workout based on location analysis
@@ -392,21 +382,6 @@ class _WorkoutPageState extends State<WorkoutPage> {
                         ),
                       ),
                       const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'Workout in Progress',
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -417,23 +392,6 @@ class _WorkoutPageState extends State<WorkoutPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Workout Name
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Text(
-                            _workoutName,
-                            style: GoogleFonts.inter(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 2,
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 40),
                         
                         // Timer
                         Container(
@@ -469,7 +427,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              color: _currentValidation?.isValid == true 
+                              color: _isMoving
                                 ? Colors.green.withOpacity(0.8)
                                 : Colors.orange.withOpacity(0.8),
                               borderRadius: BorderRadius.circular(8),
@@ -494,35 +452,16 @@ class _WorkoutPageState extends State<WorkoutPage> {
                               Column(
                                 children: [
                                   Text(
-                                    'Valid Reps',
+                                    'Status',
                                     style: GoogleFonts.inter(
                                       color: const Color(0xFF9E9E9E),
                                       fontSize: 12,
                                     ),
                                   ),
                                   Text(
-                                    '$_validReps',
+                                    _isMoving ? 'Moving' : 'Still',
                                     style: GoogleFonts.inter(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Column(
-                                children: [
-                                  Text(
-                                    'Quality',
-                                    style: GoogleFonts.inter(
-                                      color: const Color(0xFF9E9E9E),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${(_workoutQuality * 100).toInt()}%',
-                                    style: GoogleFonts.inter(
-                                      color: const Color(0xFF6A0DAD),
+                                      color: _isMoving ? Colors.green : Colors.orange,
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -584,52 +523,6 @@ class _WorkoutPageState extends State<WorkoutPage> {
                         
                         const SizedBox(height: 40),
                         
-                        // Instructions
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 24),
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                'Instructions',
-                                style: GoogleFonts.inter(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _workoutInstructions,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: Colors.white,
-                                  height: 1.4,
-                                ),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.visible,
-                                maxLines: null,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Form Tips: $_formTips',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  color: const Color(0xFF6A0DAD),
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.4,
-                                ),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.visible,
-                                maxLines: null,
-                              ),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
                   ),

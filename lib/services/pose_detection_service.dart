@@ -3,102 +3,91 @@ import 'dart:typed_data' show Uint8List;
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
-/// Service for detecting poses using Google ML Kit
 class PoseDetectionService {
-  late PoseDetector _poseDetector;
+  PoseDetector? _poseDetector;
   bool _isInitialized = false;
 
-  /// Initialize the pose detector
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // Configure pose detector options
-    final options = PoseDetectorOptions(
-      mode: PoseDetectionMode.stream,
-      model: PoseDetectionModel.accurate,
-    );
+    try {
+      final options = PoseDetectorOptions(
+        mode: PoseDetectionMode.stream,
+        model: PoseDetectionModel.base,
+      );
 
-    _poseDetector = PoseDetector(options: options);
-    _isInitialized = true;
+      _poseDetector = PoseDetector(options: options);
+      _isInitialized = true;
+      print('Pose Detection: Initialized successfully');
+    } catch (e) {
+      print('Pose Detection: Initialization failed - $e');
+      _isInitialized = false;
+    }
   }
 
-  /// Process camera image and detect poses
-  Future<List<Pose>> detectPoses(CameraImage cameraImage, CameraDescription camera) async {
-    if (!_isInitialized) {
+  Future<List<Pose>> detectPoses(CameraImage image, CameraDescription camera) async {
+    if (!_isInitialized || _poseDetector == null) {
       await initialize();
+      if (!_isInitialized || _poseDetector == null) {
+        print('Pose Detection: Still not initialized');
+        return [];
+      }
     }
 
     try {
-      // Convert CameraImage to InputImage
-      final inputImage = _convertCameraImageToInputImage(cameraImage, camera);
+      // Convert image
+      final inputImage = InputImage.fromBytes(
+        bytes: _concatenatePlanes(image.planes),
+        metadata: InputImageMetadata(
+          size: ui.Size(image.width.toDouble(), image.height.toDouble()),
+          rotation: _getRotation(camera.sensorOrientation),
+          format: InputImageFormat.bgra8888,
+          bytesPerRow: image.planes[0].bytesPerRow,
+        ),
+      );
+
+      // Process image
+      final poses = await _poseDetector!.processImage(inputImage);
       
-      // Process the image for pose detection
-      final poses = await _poseDetector.processImage(inputImage);
-      return poses;
+      if (poses.isNotEmpty) {
+        // Check if we can detect the nose (basic validation)
+        final nose = poses.first.landmarks[PoseLandmarkType.nose];
+        if (nose != null) {
+          print('Pose Detection: Person detected with nose at (${nose.x}, ${nose.y})');
+          return poses;
+        } else {
+          print('Pose Detection: Person detected but no nose landmark');
+          return [];
+        }
+      } else {
+        print('Pose Detection: No person detected');
+        return [];
+      }
     } catch (e) {
-      print('Error detecting poses: $e');
+      print('Pose Detection Error: $e');
       return [];
     }
   }
 
-  /// Convert CameraImage to InputImage for ML Kit
-  InputImage _convertCameraImageToInputImage(CameraImage cameraImage, CameraDescription camera) {
-    // Get image rotation based on camera orientation
-    final rotation = _getImageRotation(camera.sensorOrientation);
+  Uint8List _concatenatePlanes(List<Plane> planes) {
+    int totalLength = 0;
+    for (Plane plane in planes) {
+      totalLength += plane.bytes.length;
+    }
     
-    // Get image format
-    final format = InputImageFormatValue.fromRawValue(cameraImage.format.raw);
+    final allBytes = Uint8List(totalLength);
+    int offset = 0;
     
-    // Get image size
-    final size = ui.Size(cameraImage.width.toDouble(), cameraImage.height.toDouble());
+    for (Plane plane in planes) {
+      allBytes.setRange(offset, offset + plane.bytes.length, plane.bytes);
+      offset += plane.bytes.length;
+    }
     
-    // Get image bytes
-    final bytes = _convertYUV420ToImageBytes(cameraImage);
-    
-    // Create InputImageMetadata
-    final metadata = InputImageMetadata(
-      size: size,
-      rotation: rotation,
-      format: format ?? InputImageFormat.nv21,
-      bytesPerRow: cameraImage.planes.first.bytesPerRow,
-    );
-
-    return InputImage.fromBytes(
-      bytes: bytes,
-      metadata: metadata,
-    );
+    return allBytes;
   }
 
-  /// Convert YUV420 format to image bytes
-  Uint8List _convertYUV420ToImageBytes(CameraImage cameraImage) {
-    final width = cameraImage.width;
-    final height = cameraImage.height;
-    
-    final yPlane = cameraImage.planes[0];
-    final uPlane = cameraImage.planes[1];
-    final vPlane = cameraImage.planes[2];
-    
-    final ySize = yPlane.bytesPerRow * height;
-    final uSize = uPlane.bytesPerRow * (height ~/ 2);
-    final vSize = vPlane.bytesPerRow * (height ~/ 2);
-    
-    final bytes = Uint8List(ySize + uSize + vSize);
-    
-    // Copy Y plane
-    bytes.setRange(0, ySize, yPlane.bytes);
-    
-    // Copy U plane
-    bytes.setRange(ySize, ySize + uSize, uPlane.bytes);
-    
-    // Copy V plane
-    bytes.setRange(ySize + uSize, ySize + uSize + vSize, vPlane.bytes);
-    
-    return bytes;
-  }
-
-  /// Get image rotation based on camera sensor orientation
-  InputImageRotation _getImageRotation(int sensorOrientation) {
-    switch (sensorOrientation) {
+  InputImageRotation _getRotation(int degrees) {
+    switch (degrees) {
       case 0:
         return InputImageRotation.rotation0deg;
       case 90:
@@ -112,11 +101,12 @@ class PoseDetectionService {
     }
   }
 
-  /// Dispose the pose detector
   void dispose() {
-    if (_isInitialized) {
-      _poseDetector.close();
+    if (_isInitialized && _poseDetector != null) {
+      _poseDetector!.close();
+      _poseDetector = null;
       _isInitialized = false;
+      print('Pose Detection: Disposed');
     }
   }
 }

@@ -180,6 +180,7 @@ class _CameraWidgetState extends State<CameraWidget> {
         builder: (context) => WorkoutPage(
           duration: _selectedDuration,
           locationAnalysis: _analysisResult ?? 'Your space',
+          enablePoseDetection: true, // Enable pose detection for workout
         ),
       ),
     );
