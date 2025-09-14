@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'signup_page.dart';
+import '../services/auth_service.dart';
 import 'home_page.dart';
+import 'signup_page.dart';
 
 class LoginSignupPage extends StatefulWidget {
   const LoginSignupPage({super.key});
@@ -13,7 +14,8 @@ class LoginSignupPage extends StatefulWidget {
 class _LoginSignupPageState extends State<LoginSignupPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final bool _isSignUp = false;
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +27,7 @@ class _LoginSignupPageState extends State<LoginSignupPage> {
           color: Color(0xFF121212), // Neutral Dark
         ),
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [
@@ -122,24 +124,25 @@ class _LoginSignupPageState extends State<LoginSignupPage> {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        // Navigate to home page after successful login
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const HomePage(),
-                          ),
-                        );
-                      },
+                      onTap: _isLoading ? null : _signIn,
                       child: Center(
-                        child: Text(
-                          'Log In',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : Text(
+                                'Log In',
+                                style: GoogleFonts.inter(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -251,7 +254,7 @@ class _LoginSignupPageState extends State<LoginSignupPage> {
                   ),
                 ),
                 
-                const Spacer(),
+                const SizedBox(height: 40),
                 
                 // Sign Up link
                 GestureDetector(
@@ -289,6 +292,86 @@ class _LoginSignupPageState extends State<LoginSignupPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _signIn() async {
+    if (_emailController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
+      _showErrorDialog('Please fill in all fields');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _authService.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+      
+      // Check if user is actually authenticated
+      final currentUser = _authService.currentUser;
+      print('Login page: Current user after sign in: ${currentUser?.email}');
+      
+      if (currentUser != null) {
+        // Navigate to home page after successful login
+        if (mounted) {
+          print('Login page: Navigating to HomePage');
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const HomePage(),
+            ),
+            (route) => false,
+          );
+          print('Login page: Navigation completed');
+        }
+      } else {
+        _showErrorDialog('Authentication failed. Please try again.');
+      }
+    } catch (e) {
+      _showErrorDialog(e.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text(
+          'Error',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          message,
+          style: GoogleFonts.inter(
+            color: Colors.white,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'OK',
+              style: GoogleFonts.inter(
+                color: const Color(0xFF6A0DAD),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

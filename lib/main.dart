@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
-import 'screens/welcome_page.dart';
-import 'screens/home_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'widgets/auth_wrapper.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const OneMinuteCoachApp());
 }
 
@@ -21,7 +27,7 @@ class OneMinuteCoachApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Inter',
       ),
-      home: const WelcomePage(),
+      home: const AuthWrapper(),
       debugShowCheckedModeBanner: false,
     );
   }
