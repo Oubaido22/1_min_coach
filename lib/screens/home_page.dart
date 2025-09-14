@@ -3,6 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'camera_widget.dart';
 import 'profile_page.dart';
 import 'history_page.dart';
+import '../services/profile_service.dart';
+import '../models/user_profile.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,6 +16,43 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  UserProfile? _userProfile;
+  bool _isLoading = true;
+  final ProfileService _profileService = ProfileService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        final profile = await _profileService.getUserProfile(currentUser.uid);
+        if (mounted) {
+          setState(() {
+            _userProfile = profile;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading user profile: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,14 +72,57 @@ class _HomePageState extends State<HomePage> {
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFC107), // Secondary Accent
+                      color: _userProfile?.profilePictureUrl != null 
+                          ? Colors.transparent
+                          : const Color(0xFFFFC107), // Secondary Accent
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 30,
-                    ),
+                    child: _userProfile?.profilePictureUrl != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(25),
+                            child: Image.network(
+                              _userProfile!.profilePictureUrl!,
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  width: 50,
+                                  height: 50,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFFFC107),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: 50,
+                                  height: 50,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFFFC107),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 30,
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                   ),
                   
                   const SizedBox(width: 16),
@@ -57,7 +140,9 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                         Text(
-                          'Amelia!',
+                          _isLoading 
+                              ? 'Loading...'
+                              : _userProfile?.fullName ?? 'User',
                           style: GoogleFonts.inter(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,

@@ -197,12 +197,15 @@ class _OnboardingProfilePicturePageState extends State<OnboardingProfilePictureP
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  'Take Photo',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.white,
+                                Flexible(
+                                  child: Text(
+                                    'Take Photo',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
@@ -235,12 +238,15 @@ class _OnboardingProfilePicturePageState extends State<OnboardingProfilePictureP
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  'Choose from Gallery',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.white,
+                                Flexible(
+                                  child: Text(
+                                    'Choose from Gallery',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.white,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],

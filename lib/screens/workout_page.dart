@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
+import '../services/workout_history_service.dart';
 
 class WorkoutPage extends StatefulWidget {
   final int duration; // Duration in minutes
@@ -24,6 +25,7 @@ class _WorkoutPageState extends State<WorkoutPage> {
   bool _isPaused = false;
   int _remainingSeconds = 0;
   Timer? _timer;
+  final WorkoutHistoryService _workoutHistoryService = WorkoutHistoryService();
   
   // Workout data based on location analysis
   String _workoutName = 'Standing Lunges';
@@ -112,6 +114,33 @@ class _WorkoutPageState extends State<WorkoutPage> {
     });
   }
 
+  Future<void> _saveWorkout() async {
+    try {
+      await _workoutHistoryService.saveWorkout(
+        durationMinutes: widget.duration,
+        workoutType: _workoutName,
+        notes: 'Completed ${widget.duration}-minute workout',
+        workoutData: {
+          'locationAnalysis': widget.locationAnalysis,
+          'workoutInstructions': _workoutInstructions,
+          'formTips': _formTips,
+        },
+      );
+      print('Workout saved successfully!');
+    } catch (e) {
+      print('Error saving workout: $e');
+      // Show error message to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save workout: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showWorkoutCompleteDialog() {
     showDialog(
       context: context,
@@ -151,8 +180,9 @@ class _WorkoutPageState extends State<WorkoutPage> {
                 color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.of(context).pop(); // Close dialog
+                    await _saveWorkout();
                     Navigator.of(context).pop(); // Go back to home
                   },
                   child: Center(
